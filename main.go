@@ -56,6 +56,7 @@ func main() {
 			}
 		},
 		// Target handler
+		// TODO: Also store commands in the Target variable
 		func(state *State, line string, wg *sync.WaitGroup) {
 			defer wg.Done()
 			if strings.HasPrefix(line, "\t") {
