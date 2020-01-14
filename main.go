@@ -37,17 +37,18 @@ func main() {
 				if fields[0] == ".PHONY:" {
 					for _, name := range fields[1:] {
 						mut.Lock()
-						if _, err := state.Targets.GetTarget(name); err != nil {
+						// Check if the target already exists
+						if existingTarget, err := state.Targets.GetTarget(name); err != nil {
 							// Target does not exist, create a new one
 							newTarget := state.Targets.AddTarget(name)
+							// Updating this variable directly is possible,
+							// since it points into the list of targets.
 							newTarget.Phony = true
-							fmt.Println("New target!", newTarget)
 						} else {
-							// Target does exists, set it to phony
-							if state.Targets.SetPhony(name) != nil {
-								// This should never happen
-								log.Fatalln("Could not set target " + name + " to phony!")
-							}
+							// Target does exists, set it to phony.
+							// Updating this variable directly is possible,
+							// since it points into the list of targets.
+							existingTarget.Phony = true
 						}
 						mut.Unlock()
 					}
