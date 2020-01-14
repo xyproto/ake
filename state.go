@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"strings"
 	"sync"
 )
@@ -11,11 +12,14 @@ import (
 // State is a struct containing all results of parsing a makefile.
 // All variables, all targets etc.
 type State struct {
-	Targets AllTargets
+	Targets   AllTargets     // a slice of all Target structs
+	TargetMap map[int]string // map from line index to target name
 }
 
 // WorkerFunc is a type of function that can be used to concurrently parse a single line
-type WorkerFunc func(*State, string, *sync.WaitGroup)
+// It takes a pointer to a State, a line index, the line contents and a WaitGroup that should have
+// the Done method called once the function is done, for instance with "defer wg.Done()" as the first line.
+type WorkerFunc func(*State, int, string, *sync.WaitGroup)
 
 func (state *State) String() string {
 	return fmt.Sprintf("%v", *state)
@@ -30,12 +34,12 @@ func (state *State) ForEachLine(path string, functionCollection []WorkerFunc) er
 		return err
 	}
 	var wg sync.WaitGroup
-	for _, byteLine := range bytes.Split(byteContents, []byte{'\n'}) {
+	for lineIndex, byteLine := range bytes.Split(byteContents, []byte{'\n'}) {
 		// For each line, fire off all functions in the functionCollection
 		line := string(byteLine)
 		for _, f := range functionCollection {
 			wg.Add(1)
-			go f(state, line, &wg)
+			go f(state, lineIndex, line, &wg)
 		}
 	}
 	wg.Wait()
@@ -46,12 +50,21 @@ func (state *State) ForEachLine(path string, functionCollection []WorkerFunc) er
 // If there are errors, the returned state will be nil.
 func Parse(path string) (*State, error) {
 
+	// Create a state, where the results from parsing will be stored
+	state := &State{}
+
+	// Prepare 256 targets, but keep the length at 0
+	state.Targets = make(AllTargets, 0, 256)
+
+	// Prepare a map from line index to make target name
+	state.TargetMap = make(map[int]string)
+
 	// Using a mutex for when modifying the state
 	var mut sync.Mutex
 
 	functionCollection := []WorkerFunc{
 		// .PHONY handler
-		func(state *State, line string, wg *sync.WaitGroup) {
+		func(state *State, lineIndex int, line string, wg *sync.WaitGroup) {
 			defer wg.Done()
 			fields := strings.Fields(strings.TrimSpace(line))
 			if len(fields) > 1 {
@@ -78,10 +91,36 @@ func Parse(path string) (*State, error) {
 		},
 		// Target handler
 		// TODO: Also store commands in the Target variable
-		func(state *State, line string, wg *sync.WaitGroup) {
+		func(state *State, lineIndex int, line string, wg *sync.WaitGroup) {
 			defer wg.Done()
+			// Is this an indented command?
 			if strings.HasPrefix(line, "\t") {
-				// This is not a target declaration
+				// Count down from lineIndex until a target name is reached
+				var (
+					targetName string
+					found      bool
+				)
+				for i := lineIndex; i >= 0; i-- {
+					mut.Lock()
+					targetName, found = state.TargetMap[i]
+					mut.Unlock()
+					if found {
+						break
+					}
+				}
+				// Now save this command to the target comands
+				mut.Lock()
+				target, err := state.Targets.GetTarget(targetName)
+				mut.Unlock()
+				if err != nil {
+					// Commands without a target, this is an error
+					// TODO: Use a proper make error message
+					log.Fatalf("Found indented commands without a leading target, at line %d: %s\n", (lineIndex + 1), strings.TrimSpace(line))
+				}
+				mut.Lock()
+				target.Commands = append(target.Commands, strings.TrimSpace(line))
+				mut.Unlock()
+				// This is not a target declaration and the command has been saved
 				return
 			}
 			fields := strings.Fields(strings.TrimSpace(line))
@@ -93,6 +132,7 @@ func Parse(path string) (*State, error) {
 					targetName = fields[0]
 				}
 				mut.Lock()
+				state.TargetMap[lineIndex] = targetName
 				if !state.Targets.HasName(targetName) {
 					newTarget := state.Targets.AddTarget(targetName)
 					if len(fields) > 1 {
@@ -107,12 +147,6 @@ func Parse(path string) (*State, error) {
 			}
 		},
 	}
-
-	// Create a state, where the results from parsing will be stored
-	state := &State{}
-
-	// Prepare 256 targets, but keep the length at 0
-	state.Targets = make(AllTargets, 0, 256)
 
 	// Perform concurrent parsing of the makefile
 	if err := state.ForEachLine(path, functionCollection); err != nil {

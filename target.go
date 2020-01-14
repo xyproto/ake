@@ -14,6 +14,7 @@ type Target struct {
 	Normal    []*Target // Before "|"
 	OrderOnly []*Target // After "|"
 	Phony     bool      // Is it .PHONY ?
+	Commands  []string  // Commands to run (not ifdef etc, just the ones indented with tab)
 }
 
 // HasName checks if the given name exists in the slice of targets
