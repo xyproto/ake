@@ -100,16 +100,15 @@ func Parse(path string) (*State, error) {
 					targetName string
 					found      bool
 				)
+				// Consider using RLock instead here. Benchmark locking the mutex within the array or outside of it.
+				mut.Lock()
 				for i := lineIndex; i >= 0; i-- {
-					mut.Lock()
 					targetName, found = state.TargetMap[i]
-					mut.Unlock()
 					if found {
 						break
 					}
 				}
 				// Now save this command to the target comands
-				mut.Lock()
 				target, err := state.Targets.GetTarget(targetName)
 				mut.Unlock()
 				if err != nil {
@@ -117,12 +116,14 @@ func Parse(path string) (*State, error) {
 					// TODO: Use a proper make error message
 					log.Fatalf("Found indented commands without a leading target, at line %d: %s\n", (lineIndex + 1), strings.TrimSpace(line))
 				}
+				// Save the command to the target.Commands slice
 				mut.Lock()
 				target.Commands = append(target.Commands, strings.TrimSpace(line))
 				mut.Unlock()
 				// This is not a target declaration and the command has been saved
 				return
 			}
+			// Is this a make target?
 			fields := strings.Fields(strings.TrimSpace(line))
 			if len(fields) > 0 && !strings.HasPrefix(fields[0], ".") {
 				targetName := ""
