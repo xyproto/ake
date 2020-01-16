@@ -12,8 +12,9 @@ import (
 // State is a struct containing all results of parsing a makefile.
 // All variables, all targets etc.
 type State struct {
-	Targets   AllTargets     // a slice of all Target structs
-	TargetMap map[int]string // map from line index to target name
+	Targets   AllTargets          // a slice of all Target structs
+	TargetMap map[int]string      // map from line index to target name
+	Variables map[string][]string // a map of all defined variables, from name to string slice
 }
 
 // WorkerFunc is a type of function that can be used to concurrently parse a single line
@@ -118,7 +119,7 @@ func Parse(path string) (*State, error) {
 				}
 				// Save the command to the target.Commands slice
 				mut.Lock()
-				target.Commands = append(target.Commands, strings.TrimSpace(line))
+				target.Commands = append(target.Commands, NewCommand(line))
 				mut.Unlock()
 				// This is not a target declaration and the command has been saved
 				return

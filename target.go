@@ -9,12 +9,12 @@ type AllTargets []Target
 
 // Target represents a make target, like "all", "clean" or "main.o"
 type Target struct {
-	ID        int       // ID, a counter
-	Name      string    // Can be a regular name or it can be something like $(OBJDIR)/%.o
-	Normal    []*Target // Before "|"
-	OrderOnly []*Target // After "|"
-	Phony     bool      // Is it .PHONY ?
-	Commands  []string  // Commands to run (not ifdef etc, just the ones indented with tab)
+	ID        int        // ID, a counter
+	Name      string     // Can be a regular name or it can be something like $(OBJDIR)/%.o
+	Normal    []*Target  // Before "|"
+	OrderOnly []*Target  // After "|"
+	Phony     bool       // Is it .PHONY ?
+	Commands  []*Command // Commands to run (not ifdef etc, just the ones indented with tab)
 }
 
 // HasName checks if the given name exists in the slice of targets
