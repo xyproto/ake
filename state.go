@@ -60,6 +60,15 @@ func Parse(path string) (*State, error) {
 	// Prepare a map from line index to make target name
 	state.TargetMap = make(map[int]string)
 
+	// Now, before starting the concurrent parsing, it might be a good idea to resolve all ifdefs first.
+	// And they might depend on variables. So parsing all variables and all ifdefs first might be needed.
+	// Alternatively, the ifdefs can wait for variables to be defined. But then, how does one know if it's waiting for a redifinition or not?
+	// No, it's better to parse variables and ifdefs properly first, and then later parse all the details.
+	// An overview over which target names applies to which lines would also be useful.
+	// Then this could be a single pass, before starting on the other parsing, below.
+    // By all means, the first pass could also be concurrent, but then they would need to repeately search for what the lines ahead contained.
+	// No, one good old fashioned pass first is a good idea. Let's do that.
+
 	// Using a mutex for when modifying the state
 	var mut sync.Mutex
 
