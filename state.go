@@ -66,7 +66,7 @@ func Parse(path string) (*State, error) {
 	// No, it's better to parse variables and ifdefs properly first, and then later parse all the details.
 	// An overview over which target names applies to which lines would also be useful.
 	// Then this could be a single pass, before starting on the other parsing, below.
-    // By all means, the first pass could also be concurrent, but then they would need to repeately search for what the lines ahead contained.
+	// By all means, the first pass could also be concurrent, but then they would need to repeately search for what the lines ahead contained.
 	// No, one good old fashioned pass first is a good idea. Let's do that.
 
 	// Using a mutex for when modifying the state
