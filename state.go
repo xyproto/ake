@@ -13,7 +13,8 @@ import (
 type State struct {
 	Targets   AllTargets          // a slice of all Target structs
 	TargetMap map[int]string      // map from line index to target name
-	Variables map[string][]string // a map of all defined variables, from name to string slice
+	Variables map[string][]string // a map of all defined variables, from string to string.
+	// TODO: Modify to point from a variable name to a slice of strings, if needed.
 }
 
 // WorkerFunc is a type of function that can be used to concurrently parse a single line
