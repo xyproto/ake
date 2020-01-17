@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -20,7 +19,8 @@ type State struct {
 // WorkerFunc is a type of function that can be used to concurrently parse a single line
 // It takes a pointer to a State, a line index, the line contents and a WaitGroup that should have
 // the Done method called once the function is done, for instance with "defer wg.Done()" as the first line.
-type WorkerFunc func(*State, int, string, *sync.WaitGroup)
+// The []string argument is a slice of all lines, so that coroutines may discover their context.
+type WorkerFunc func(*State, int, string, *sync.WaitGroup, []string)
 
 func (state *State) String() string {
 	return fmt.Sprintf("%v", *state)
@@ -35,46 +35,26 @@ func (state *State) ForEachLine(path string, functionCollection []WorkerFunc) er
 		return err
 	}
 	var wg sync.WaitGroup
-	for lineIndex, byteLine := range bytes.Split(byteContents, []byte{'\n'}) {
+	lines := strings.Split(string(byteContents), "\n")
+	for lineIndex, line := range lines {
 		// For each line, fire off all functions in the functionCollection
-		line := string(byteLine)
 		for _, f := range functionCollection {
 			wg.Add(1)
-			go f(state, lineIndex, line, &wg)
+			go f(state, lineIndex, line, &wg, lines)
 		}
 	}
 	wg.Wait()
 	return nil
 }
 
-// Parse will try to parse a Makefile into a State struct
-// If there are errors, the returned state will be nil.
-func Parse(path string) (*State, error) {
-
-	// Create a state, where the results from parsing will be stored
-	state := &State{}
-
-	// Prepare 256 targets, but keep the length at 0
-	state.Targets = make(AllTargets, 0, 256)
-
-	// Prepare a map from line index to make target name
-	state.TargetMap = make(map[int]string)
-
-	// Now, before starting the concurrent parsing, it might be a good idea to resolve all ifdefs first.
-	// And they might depend on variables. So parsing all variables and all ifdefs first might be needed.
-	// Alternatively, the ifdefs can wait for variables to be defined. But then, how does one know if it's waiting for a redifinition or not?
-	// No, it's better to parse variables and ifdefs properly first, and then later parse all the details.
-	// An overview over which target names applies to which lines would also be useful.
-	// Then this could be a single pass, before starting on the other parsing, below.
-	// By all means, the first pass could also be concurrent, but then they would need to repeately search for what the lines ahead contained.
-	// No, one good old fashioned pass first is a good idea. Let's do that.
+func (state *State) ConcurrentParsing(path string) error {
 
 	// Using a mutex for when modifying the state
 	var mut sync.Mutex
 
 	functionCollection := []WorkerFunc{
 		// .PHONY handler
-		func(state *State, lineIndex int, line string, wg *sync.WaitGroup) {
+		func(state *State, lineIndex int, line string, wg *sync.WaitGroup, lines []string) {
 			defer wg.Done()
 			fields := strings.Fields(strings.TrimSpace(line))
 			if len(fields) > 1 {
@@ -101,7 +81,7 @@ func Parse(path string) (*State, error) {
 		},
 		// Target handler
 		// TODO: Also store commands in the Target variable
-		func(state *State, lineIndex int, line string, wg *sync.WaitGroup) {
+		func(state *State, lineIndex int, line string, wg *sync.WaitGroup, lines []string) {
 			defer wg.Done()
 			// Is this an indented command?
 			if strings.HasPrefix(line, "\t") {
@@ -160,7 +140,33 @@ func Parse(path string) (*State, error) {
 	}
 
 	// Perform concurrent parsing of the makefile
-	if err := state.ForEachLine(path, functionCollection); err != nil {
+	return state.ForEachLine(path, functionCollection)
+}
+
+// Parse will try to parse a Makefile into a State struct
+// If there are errors, the returned state will be nil.
+func Parse(path string) (*State, error) {
+
+	// Create a state, where the results from parsing will be stored
+	state := &State{}
+
+	// Prepare 256 targets, but keep the length at 0
+	state.Targets = make(AllTargets, 0, 256)
+
+	// Prepare a map from line index to make target name
+	state.TargetMap = make(map[int]string)
+
+	// Now, before starting the concurrent parsing, it might be a good idea to resolve all ifdefs first.
+	// And they might depend on variables. So parsing all variables and all ifdefs first might be needed.
+	// Alternatively, the ifdefs can wait for variables to be defined. But then, how does one know if it's waiting for a redifinition or not?
+	// No, it's better to parse variables and ifdefs properly first, and then later parse all the details.
+	// An overview over which target names applies to which lines would also be useful.
+	// Then this could be a single pass, before starting on the other parsing, below.
+	// By all means, the first pass could also be concurrent, but then they would need to repeately search for what the lines ahead contained.
+	// No, one good old fashioned pass first is a good idea. Let's do that.
+	// But! Can it be done concurrently, just for the heck of it? Yes, probably. Let's do that.
+
+	if err := state.ConcurrentParsing(path); err != nil {
 		return nil, err
 	}
 
