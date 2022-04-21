@@ -48,6 +48,7 @@ func (state *State) ForEachLine(path string, functionCollection []WorkerFunc) er
 	return nil
 }
 
+// ConcurrentParsing parses the given Makefile concurrently
 func (state *State) ConcurrentParsing(path string) error {
 
 	// Using a mutex for when modifying the state
