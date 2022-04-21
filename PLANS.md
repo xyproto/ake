@@ -10,7 +10,6 @@ Before parsing, there are two things that should be done:
   * Add support for $(shell ) and $(wildcard ), possibly a few others too.
   * Add support for ifdef, else and endif.
 
-
 ## When parsing targets
 
 The goroutines that parse targets should trigger another goroutine that has access to the entire file,
