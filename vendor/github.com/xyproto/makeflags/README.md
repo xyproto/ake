@@ -26,7 +26,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if len(config.Targets) == 0 || config.Makefile == "" {
+	if len(config.Targets) == 0 && config.Makefile == "" {
 		fmt.Println("make: *** No targets specified and no makefile found.  Stop.")
 		os.Exit(2)
 	}

@@ -1,2 +1,2 @@
-# github.com/xyproto/makeflags v1.1.0
+# github.com/xyproto/makeflags v1.1.1-0.20220421125523-d99461485e8a
 github.com/xyproto/makeflags
